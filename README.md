@@ -96,6 +96,30 @@ Open:
 npm run build
 ```
 
+### Run from `dist/` (no Vite dev server)
+
+You still need to run the API server (and MongoDB). For the frontend, you have two options:
+
+**Option A: Serve `dist/` from the API server (single process)**
+
+```bash
+npm run build
+SERVE_CLIENT=true npm run start:server
+```
+
+Then open:
+- `http://localhost:3001`
+
+**Option B: Serve `dist/` separately (static hosting)**
+
+Build with the API base URL set to your API origin:
+
+```bash
+VITE_API_BASE_URL="http://localhost:3001" npm run build
+```
+
+Serve `dist/` with any static server (or `npm run preview`) and make sure it can reach the API.
+
 Preview the production build locally:
 
 ```bash

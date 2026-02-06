@@ -2,9 +2,16 @@ import "dotenv/config";
 
 import cors from "cors";
 import express from "express";
+import path from "path";
+import { fileURLToPath } from "url";
 
 import { getDb, getMongoClient } from "./mongo.js";
 import { HttpError, buildIdFilter, escapeRegex, toApiDoc, toObjectId } from "./utils.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const distDir = path.resolve(__dirname, "../dist");
+const shouldServeClient = process.env.SERVE_CLIENT === "true" || process.env.NODE_ENV === "production";
 
 function asyncHandler(handler) {
   return (req, res, next) => {
@@ -584,6 +591,22 @@ app.post(
     res.json({ groups: groups.map(toApiDoc) });
   }),
 );
+
+if (shouldServeClient) {
+  app.use(
+    express.static(distDir, {
+      index: false,
+      fallthrough: true,
+    }),
+  );
+
+  app.get("*", (req, res, next) => {
+    if (req.path.startsWith("/api")) return next();
+    res.sendFile(path.join(distDir, "index.html"), (error) => {
+      if (error) next(error);
+    });
+  });
+}
 
 app.use((err, _req, res, _next) => {
   const status = err instanceof HttpError ? err.status : 500;
