@@ -2,6 +2,7 @@ import "dotenv/config";
 
 import cors from "cors";
 import express from "express";
+import jwt from "jsonwebtoken";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -12,11 +13,38 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const distDir = path.resolve(__dirname, "../dist");
 const shouldServeClient = process.env.SERVE_CLIENT === "true" || process.env.NODE_ENV === "production";
+const JWT_SECRET = process.env.JWT_SECRET || "change-me";
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "8h";
 
 function asyncHandler(handler) {
   return (req, res, next) => {
     Promise.resolve(handler(req, res, next)).catch(next);
   };
+}
+
+function getBearerToken(req) {
+  const header = req.headers.authorization;
+  if (!header || typeof header !== "string") return null;
+  if (!header.startsWith("Bearer ")) return null;
+  return header.slice("Bearer ".length).trim() || null;
+}
+
+function authMiddleware(req, _res, next) {
+  if (!req.path.startsWith("/api")) return next();
+  if (req.method === "OPTIONS") return next();
+
+  const publicRoutes = new Set(["/api/health", "/api/auth/login"]);
+  if (publicRoutes.has(req.path)) return next();
+
+  const token = getBearerToken(req);
+  if (!token) return next(new HttpError(401, "Missing authorization token"));
+
+  try {
+    req.user = jwt.verify(token, JWT_SECRET);
+    return next();
+  } catch {
+    return next(new HttpError(401, "Invalid or expired token"));
+  }
 }
 
 function nowIso() {
@@ -51,6 +79,7 @@ async function ensureIndexes(db) {
     db.collection("generate_groups").createIndex({ model_number: 1, generated_at: -1 }),
     db.collection("generate_groups").createIndex({ "serials.serialNumber": 1 }),
     db.collection("generate_groups").createIndex({ "serials.macIds": 1 }),
+    db.collection("users").createIndex({ username: 1 }, { unique: true }),
   ]);
 }
 
@@ -69,11 +98,39 @@ const app = express();
 app.disable("x-powered-by");
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
+app.use(authMiddleware);
 
 app.get(
   "/api/health",
   asyncHandler(async (_req, res) => {
     res.json({ ok: true });
+  }),
+);
+
+app.post(
+  "/api/auth/login",
+  asyncHandler(async (req, res) => {
+    const { username, password } = req.body ?? {};
+    if (!username || typeof username !== "string") throw new HttpError(400, "username is required");
+    if (!password || typeof password !== "string") throw new HttpError(400, "password is required");
+
+    const db = await getDb();
+    const user = await db.collection("users").findOne({ username: username.trim() });
+
+    if (!user || user.password !== password) {
+      throw new HttpError(401, "Invalid credentials");
+    }
+
+    const token = jwt.sign(
+      { sub: String(user._id), username: user.username },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRES_IN },
+    );
+
+    res.json({
+      token,
+      user: { id: String(user._id), username: user.username },
+    });
   }),
 );
 

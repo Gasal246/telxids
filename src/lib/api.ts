@@ -1,3 +1,5 @@
+import { clearAuthToken, getAuthToken } from "@/lib/auth";
+
 export type Category = {
   id: string;
   category_name: string;
@@ -71,6 +73,16 @@ export type AllocateResponse = {
   allocated_count: number;
 };
 
+export type AuthUser = {
+  id: string;
+  username: string;
+};
+
+export type AuthResponse = {
+  token: string;
+  user: AuthUser;
+};
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
 function apiUrl(path: string): string {
@@ -78,8 +90,19 @@ function apiUrl(path: string): string {
   return new URL(path, API_BASE_URL).toString();
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(apiUrl(path), init);
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const headers = new Headers(init.headers || {});
+  const token = getAuthToken();
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+
+  const res = await fetch(apiUrl(path), { ...init, headers });
+  if (res.status === 401) {
+    clearAuthToken();
+    if (typeof window !== "undefined" && window.location.pathname !== "/sign-in") {
+      window.location.assign("/sign-in");
+    }
+  }
+
   if (!res.ok) {
     let message = `Request failed (${res.status})`;
     try {
@@ -103,6 +126,10 @@ function jsonInit(method: string, body: unknown): RequestInit {
 }
 
 export const api = {
+  // Auth
+  login: (input: { username: string; password: string }) =>
+    request<AuthResponse>("/api/auth/login", jsonInit("POST", input)),
+
   // Categories
   getCategories: () => request<Category[]>("/api/categories"),
   getCategoryByName: (categoryName: string) =>
