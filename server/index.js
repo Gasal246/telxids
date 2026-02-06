@@ -139,12 +139,12 @@ app.put(
       types: types.map((t) => t.trim()).filter(Boolean),
     };
 
-    let result = await db
+    let updatedCategory = await db
       .collection("categories")
       .findOneAndUpdate(filter, { $set: updateDoc, $unset: { prefix: "" } }, { returnDocument: "after" });
 
-    if (!result.value && typeof original_category_name === "string" && original_category_name.trim()) {
-      result = await db
+    if (!updatedCategory && typeof original_category_name === "string" && original_category_name.trim()) {
+      updatedCategory = await db
         .collection("categories")
         .findOneAndUpdate(
           { category_name: original_category_name.trim() },
@@ -153,8 +153,8 @@ app.put(
         );
     }
 
-    if (!result.value) throw new HttpError(404, "Category not found");
-    res.json(toApiDoc(result.value));
+    if (!updatedCategory) throw new HttpError(404, "Category not found");
+    res.json(toApiDoc(updatedCategory));
   }),
 );
 
@@ -204,13 +204,13 @@ app.put(
     }
 
     const db = await getDb();
-    const result = await db.collection("chipsets").findOneAndUpdate(
+    const updatedChipset = await db.collection("chipsets").findOneAndUpdate(
       filter,
       { $set: { chipset_name: chipset_name.trim() } },
       { returnDocument: "after" },
     );
-    if (!result.value) throw new HttpError(404, "Chipset not found");
-    res.json(toApiDoc(result.value));
+    if (!updatedChipset) throw new HttpError(404, "Chipset not found");
+    res.json(toApiDoc(updatedChipset));
   }),
 );
 
@@ -334,13 +334,13 @@ app.put(
     }
 
     const db = await getDb();
-    const result = await db.collection("models").findOneAndUpdate(
+    const updatedModel = await db.collection("models").findOneAndUpdate(
       { model_number: modelNumber },
       { $set: update },
       { returnDocument: "after" },
     );
-    if (!result.value) throw new HttpError(404, "Model not found");
-    res.json(toApiDoc(result.value));
+    if (!updatedModel) throw new HttpError(404, "Model not found");
+    res.json(toApiDoc(updatedModel));
   }),
 );
 
